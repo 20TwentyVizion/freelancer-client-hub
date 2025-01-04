@@ -8,6 +8,7 @@ import { Modal } from './components/shared/Modal';
 import { useAppState } from './hooks/useAppState';
 import { useTheme } from './hooks/useTheme';
 import { useNotifications } from './hooks/useNotifications';
+import { AnalyticsDashboard } from './components/dashboard/AnalyticsDashboard';
 
 const App: React.FC = () => {
   const [showNewClientModal, setShowNewClientModal] = React.useState(false);
@@ -62,6 +63,8 @@ const App: React.FC = () => {
               }}
               hasClients={clients.length > 0}
             />
+
+            <AnalyticsDashboard />
           </div>
         )}
 
