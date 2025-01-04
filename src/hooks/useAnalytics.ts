@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { addDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { addDays, startOfDay, endOfDay, isWithinInterval, subDays } from 'date-fns';
 import { useAppState } from './useAppState';
 
 interface TimelineData {
@@ -24,22 +24,62 @@ interface AnalyticsData {
     progress: number;
     deadline: Date;
   }[];
+  totals: {
+    activeClients: number;
+    activeProjects: number;
+    pendingInvoices: number;
+    completedProjects: number;
+    totalRevenue: number;
+  };
 }
 
-export const useAnalytics = (days = 7): AnalyticsData => {
+interface AnalyticsOptions {
+  days?: number;
+  startDate?: Date;
+  endDate?: Date;
+  clientId?: string;
+  projectStatus?: string[];
+  invoiceStatus?: string[];
+}
+
+export const useAnalytics = (options: AnalyticsOptions = {}): AnalyticsData => {
   const { clients, projects, invoices } = useAppState();
-  const now = new Date('2025-01-04T15:39:05-05:00'); // Using provided timestamp
+  const now = new Date('2025-01-04T15:46:49-05:00');
 
   return useMemo(() => {
+    const {
+      days = 7,
+      startDate = subDays(now, days - 1),
+      endDate = now,
+      clientId,
+      projectStatus = ['in_progress', 'completed'],
+      invoiceStatus = ['paid', 'pending'],
+    } = options;
+
+    // Filter data based on options
+    const filteredClients = clients.filter(client => 
+      !clientId || client.id === clientId
+    );
+
+    const filteredProjects = projects.filter(project => 
+      (!clientId || project.clientId === clientId) &&
+      (!projectStatus.length || projectStatus.includes(project.status))
+    );
+
+    const filteredInvoices = invoices.filter(invoice => 
+      (!clientId || invoice.clientId === clientId) &&
+      (!invoiceStatus.length || invoiceStatus.includes(invoice.status))
+    );
+
     // Generate date range
     const dateRange = Array.from({ length: days }, (_, i) => 
-      startOfDay(addDays(now, -i))
-    ).reverse();
+      startOfDay(addDays(startDate, i))
+    );
 
     // Client growth over time
     const clientGrowth = dateRange.map(date => ({
       date,
-      value: clients.filter(client => 
+      value: filteredClients.filter(client => 
         new Date(client.createdAt) <= endOfDay(date)
       ).length
     }));
@@ -47,7 +87,7 @@ export const useAnalytics = (days = 7): AnalyticsData => {
     // Project completion rate
     const projectCompletion = dateRange.map(date => ({
       date,
-      value: projects.filter(project =>
+      value: filteredProjects.filter(project =>
         project.status === 'completed' &&
         new Date(project.completedAt) <= endOfDay(date)
       ).length
@@ -56,7 +96,7 @@ export const useAnalytics = (days = 7): AnalyticsData => {
     // Revenue timeline
     const revenueTimeline = dateRange.map(date => ({
       date,
-      value: invoices
+      value: filteredInvoices
         .filter(invoice => 
           invoice.status === 'paid' &&
           new Date(invoice.paidAt) <= endOfDay(date)
@@ -67,20 +107,20 @@ export const useAnalytics = (days = 7): AnalyticsData => {
     // Deadline distribution
     const deadlineDistribution = dateRange.map(date => ({
       date,
-      value: projects.filter(project =>
+      value: filteredProjects.filter(project =>
         new Date(project.dueDate) <= endOfDay(date)
       ).length
     }));
 
     // Client activity
-    const clientActivity = clients
+    const clientActivity = filteredClients
       .map(client => {
-        const clientProjects = projects.filter(p => p.clientId === client.id);
+        const clientProjects = filteredProjects.filter(p => p.clientId === client.id);
         const lastProjectUpdate = Math.max(
           ...clientProjects.map(p => new Date(p.updatedAt).getTime())
         );
         const activityCount = clientProjects.length + 
-          invoices.filter(i => i.clientId === client.id).length;
+          filteredInvoices.filter(i => i.clientId === client.id).length;
 
         return {
           id: client.id,
@@ -92,8 +132,8 @@ export const useAnalytics = (days = 7): AnalyticsData => {
       .sort((a, b) => b.activity - a.activity)
       .slice(0, 5);
 
-    // Top projects by progress
-    const topProjects = projects
+    // Top projects
+    const topProjects = filteredProjects
       .filter(p => p.status === 'in_progress')
       .map(project => ({
         id: project.id,
@@ -104,13 +144,27 @@ export const useAnalytics = (days = 7): AnalyticsData => {
       .sort((a, b) => b.progress - a.progress)
       .slice(0, 5);
 
+    // Calculate totals
+    const totals = {
+      activeClients: filteredClients.filter(c => c.status === 'active').length,
+      activeProjects: filteredProjects.filter(p => p.status === 'in_progress').length,
+      pendingInvoices: filteredInvoices
+        .filter(i => i.status === 'pending')
+        .reduce((sum, invoice) => sum + invoice.amount, 0),
+      completedProjects: filteredProjects.filter(p => p.status === 'completed').length,
+      totalRevenue: filteredInvoices
+        .filter(i => i.status === 'paid')
+        .reduce((sum, invoice) => sum + invoice.amount, 0),
+    };
+
     return {
       clientGrowth,
       projectCompletion,
       revenueTimeline,
       deadlineDistribution,
       clientActivity,
-      topProjects
+      topProjects,
+      totals,
     };
-  }, [clients, projects, invoices]);
+  }, [clients, projects, invoices, options]);
 };

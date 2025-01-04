@@ -1,15 +1,60 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Users, DollarSign, Calendar } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, Calendar, Download, Filter } from 'lucide-react';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import { AccessibleChart } from '../charts/AccessibleChart';
 import { useTheme } from '../../contexts/ThemeContext';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatDate } from '../../utils/formatters';
+
+interface FilterOptions {
+  dateRange: number;
+  projectStatus: string[];
+  invoiceStatus: string[];
+}
 
 export const AnalyticsDashboard: React.FC = () => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const analytics = useAnalytics(7); // Get last 7 days of data
+  const [filters, setFilters] = useState<FilterOptions>({
+    dateRange: 7,
+    projectStatus: ['in_progress', 'completed'],
+    invoiceStatus: ['paid', 'pending'],
+  });
+
+  const analytics = useAnalytics({
+    days: filters.dateRange,
+    projectStatus: filters.projectStatus,
+    invoiceStatus: filters.invoiceStatus,
+  });
+
+  const handleExportData = () => {
+    const data = {
+      timestamp: new Date('2025-01-04T15:46:49-05:00').toISOString(),
+      analytics: {
+        totals: analytics.totals,
+        timelines: {
+          clientGrowth: analytics.clientGrowth,
+          projectCompletion: analytics.projectCompletion,
+          revenueTimeline: analytics.revenueTimeline,
+          deadlineDistribution: analytics.deadlineDistribution,
+        },
+        topPerformers: {
+          clients: analytics.clientActivity,
+          projects: analytics.topProjects,
+        },
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-export-${formatDate(new Date('2025-01-04T15:46:49-05:00'))}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const chartSections = [
     {
@@ -49,6 +94,44 @@ export const AnalyticsDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className={`text-xl font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Analytics Overview
+        </h2>
+        <div className="flex items-center space-x-4">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setFilters(prev => ({
+              ...prev,
+              dateRange: prev.dateRange === 7 ? 30 : 7,
+            }))}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+              isDark 
+                ? 'bg-gray-800 hover:bg-gray-700 text-gray-200' 
+                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+          >
+            <Filter className="h-4 w-4" />
+            <span>{filters.dateRange} Days</span>
+          </motion.button>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleExportData}
+            className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${
+              isDark 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-blue-500 hover:bg-blue-600 text-white'
+            }`}
+          >
+            <Download className="h-4 w-4" />
+            <span>Export</span>
+          </motion.button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {chartSections.map((section, index) => (
           <motion.div
@@ -124,7 +207,7 @@ export const AnalyticsDashboard: React.FC = () => {
                 <div className={`px-3 py-1 rounded-full text-sm ${
                   isDark ? 'bg-blue-900/50 text-blue-400' : 'bg-blue-100 text-blue-600'
                 }`}>
-                  {formatTimeAgo(client.lastActive)}
+                  {formatDate(client.lastActive)}
                 </div>
               </div>
             ))}
@@ -172,7 +255,7 @@ export const AnalyticsDashboard: React.FC = () => {
                   />
                 </div>
                 <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Due {formatTimeAgo(project.deadline)}
+                  Due {formatDate(project.deadline)}
                 </p>
               </div>
             ))}
