@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, useLocation, Link } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { DashboardStats } from './components/dashboard/DashboardStats';
 import { QuickActions } from './components/dashboard/QuickActions';
 import { NewClientForm } from './components/forms/NewClientForm';
@@ -21,8 +21,6 @@ const App: React.FC = () => {
     addClient,
     markNotificationAsRead,
     addNotification,
-    exportAllData,
-    importData,
   } = useAppState();
   
   const { sendNotification } = useNotifications();
@@ -31,7 +29,8 @@ const App: React.FC = () => {
   // Calculate stats
   const activeProjects = projects.filter(p => p.status === 'in_progress').length;
   const activeClients = clients.filter(c => c.status === 'active').length;
-  const pendingInvoices = invoices.filter(i => i.status === 'pending')
+  const pendingInvoices = invoices
+    .filter(i => i.status === 'pending')
     .reduce((sum, invoice) => sum + invoice.amount, 0);
   const upcomingDeadlines = projects.filter(p => {
     const daysUntilDue = Math.ceil((new Date(p.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -47,16 +46,12 @@ const App: React.FC = () => {
         />
         
         {location.pathname === '/' && (
-          <>
+          <div className="space-y-8">
             <DashboardStats
               activeProjects={activeProjects}
               activeClients={activeClients}
               pendingInvoices={pendingInvoices}
               upcomingDeadlines={upcomingDeadlines}
-              projects={projects}
-              clients={clients}
-              invoices={invoices}
-              deadlines={projects.filter(p => p.dueDate)}
             />
             
             <QuickActions
@@ -66,12 +61,13 @@ const App: React.FC = () => {
                 }
               }}
               hasClients={clients.length > 0}
-              hasProjects={projects.length > 0}
             />
-          </>
+          </div>
         )}
 
-        <Outlet context={{ clients, projects, invoices }} />
+        <main className="mt-8">
+          <Outlet context={{ clients, projects, invoices }} />
+        </main>
 
         {/* New Client Modal */}
         <Modal
